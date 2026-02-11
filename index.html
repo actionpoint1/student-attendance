@@ -508,7 +508,7 @@
         .period-btn.active .period-dot { background: #fff; }
         .period-btn.current-period { box-shadow: 0 0 8px rgba(52,152,219,0.4); }
 
-        /* OCR Camera Feature */
+        /* Quick Entry Feature */
         .btn-camera {
             background: linear-gradient(135deg, #8e44ad, #9b59b6);
             color: #fff;
@@ -540,23 +540,30 @@
         }
         .ocr-box h3 { color: #ffd200; margin-bottom: 12px; font-size: 1.1rem; }
         .ocr-box p { color: #aaa; font-size: 0.85rem; margin-bottom: 15px; }
-        .ocr-preview { max-width: 100%; max-height: 200px; border-radius: 10px; margin: 10px 0; display: none; }
         .ocr-result { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px; margin: 10px 0; text-align: right; }
         .ocr-result .num-tag {
             display: inline-block; padding: 4px 10px; margin: 3px;
             background: rgba(231,76,60,0.2); color: #e74c3c;
             border-radius: 8px; font-weight: 700; font-size: 0.9rem;
         }
-        .ocr-progress { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin: 10px 0; overflow: hidden; }
-        .ocr-progress-bar { height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); border-radius: 3px; transition: width 0.3s; width: 0%; }
-        .ocr-status { color: #aaa; font-size: 0.8rem; margin: 5px 0; }
-        .ocr-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
-        .ocr-upload-area {
-            border: 2px dashed rgba(255,255,255,0.2);
+        .quick-input {
+            width: 100%;
+            padding: 14px;
             border-radius: 12px;
-            padding: 25px;
-            cursor: pointer;
-            transition: all 0.3s;
+            border: 2px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: 700;
+            letter-spacing: 2px;
+            direction: ltr;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .quick-input:focus { border-color: #3498db; }
+        .quick-input::placeholder { color: rgba(255,255,255,0.3); font-size: 0.9rem; font-weight: 400; letter-spacing: 0; }
+        .ocr-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
         }
         .ocr-upload-area:hover { border-color: #3498db; background: rgba(52,152,219,0.05); }
         .ocr-upload-area .icon { font-size: 2.5rem; margin-bottom: 8px; }
@@ -755,7 +762,7 @@
 
                     <div class="actions" id="attendanceActions" style="display:none;">
                         <button class="btn btn-primary" onclick="saveAttendance()">حفظ الحضور</button>
-                        <button class="btn btn-camera" onclick="openOCR()">📷 تصوير الغياب</button>
+                        <button class="btn btn-camera" onclick="openQuickEntry()">⌨️ إدخال الغياب</button>
                         <button class="btn btn-export" onclick="printDailyReport()">طباعة التقرير</button>
                         <button class="btn btn-reset" onclick="resetAll()">إعادة تعيين الكل حاضر</button>
                     </div>
@@ -1759,159 +1766,84 @@
         buildClassSelector();
         checkAuth();
 
-        // ===== OCR Camera Feature =====
-        function openOCR() {
+        // ===== Quick Entry Feature =====
+        function openQuickEntry() {
             document.getElementById('ocrOverlay').classList.add('active');
             document.getElementById('ocrResult').style.display = 'none';
-            document.getElementById('ocrPreview').style.display = 'none';
-            document.getElementById('ocrProgress').style.display = 'none';
-            document.getElementById('ocrStatus').textContent = '';
-            document.getElementById('ocrApplyBtn').style.display = 'none';
-            document.getElementById('ocrUploadArea').style.display = 'block';
+            const input = document.getElementById('quickInput');
+            input.value = '';
+            setTimeout(() => input.focus(), 200);
+            previewQuickEntry();
         }
 
-        function closeOCR() {
+        function closeQuickEntry() {
             document.getElementById('ocrOverlay').classList.remove('active');
         }
 
-        function handleOCRFile(input) {
-            const file = input.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = document.getElementById('ocrPreview');
-                img.src = e.target.result;
-                img.style.display = 'block';
-                document.getElementById('ocrUploadArea').style.display = 'none';
-                processOCR(e.target.result);
-            };
-            reader.readAsDataURL(file);
-        }
-
-        async function processOCR(imageData) {
-            const progressDiv = document.getElementById('ocrProgress');
-            const progressBar = document.getElementById('ocrProgressBar');
-            const statusEl = document.getElementById('ocrStatus');
+        function previewQuickEntry() {
+            const input = document.getElementById('quickInput');
             const resultDiv = document.getElementById('ocrResult');
-            const applyBtn = document.getElementById('ocrApplyBtn');
-
-            progressDiv.style.display = 'block';
-            statusEl.textContent = 'جاري تحميل محرك التعرف على النصوص...';
-            progressBar.style.width = '10%';
-
-            try {
-                // Load Tesseract.js dynamically
-                if (!window.Tesseract) {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
-
-                statusEl.textContent = 'جاري التعرف على الأرقام...';
-                progressBar.style.width = '30%';
-
-                const worker = await Tesseract.createWorker('eng', 1, {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            const pct = Math.round(30 + m.progress * 60);
-                            progressBar.style.width = pct + '%';
-                        }
-                    }
-                });
-                await worker.setParameters({ tessedit_char_whitelist: '0123456789 ,.-\n' });
-                const result = await worker.recognize(imageData);
-                await worker.terminate();
-
-                progressBar.style.width = '95%';
-                statusEl.textContent = 'جاري استخراج الأرقام...';
-
-                // Extract numbers from OCR text
-                const text = result.data.text;
+            input.addEventListener('input', function() {
+                const text = input.value.trim();
+                if (!text) { resultDiv.style.display = 'none'; return; }
                 const numbers = text.match(/\d+/g);
+                if (!numbers) { resultDiv.style.display = 'none'; return; }
                 const seats = getData('seats');
                 const seatNums = seats.map(s => s.num);
-
-                // Filter to valid seat numbers only
                 const validNums = [];
-                if (numbers) {
-                    numbers.forEach(n => {
-                        const num = parseInt(n);
-                        if (seatNums.includes(num) && !validNums.includes(num)) {
-                            validNums.push(num);
-                        }
-                    });
-                }
-
-                progressBar.style.width = '100%';
-
+                numbers.forEach(n => {
+                    const num = parseInt(n);
+                    if (seatNums.includes(num) && !validNums.includes(num)) validNums.push(num);
+                });
                 if (validNums.length > 0) {
                     validNums.sort((a, b) => a - b);
-                    resultDiv.innerHTML = '<div style="color:#ffd200; font-weight:700; margin-bottom:8px;">الأرقام المكتشفة (' + validNums.length + '):</div>' +
+                    resultDiv.innerHTML = '<div style="color:#ffd200; font-weight:700; margin-bottom:8px;">الطلاب (' + validNums.length + '):</div>' +
                         validNums.map(n => {
                             const seat = seats.find(s => s.num === n);
                             const name = seat && seat.name ? ' - ' + seat.name : '';
                             return '<span class="num-tag">' + n + name + '</span>';
                         }).join('');
                     resultDiv.style.display = 'block';
-                    applyBtn.style.display = 'inline-block';
-                    applyBtn.onclick = function() { applyOCRAbsent(validNums); };
-                    statusEl.textContent = 'تم اكتشاف ' + validNums.length + ' طالب غائب';
                 } else {
-                    resultDiv.innerHTML = '<div style="color:#e74c3c;">لم يتم اكتشاف أرقام طلاب صالحة. حاول تصوير الأرقام بشكل أوضح.</div>';
+                    resultDiv.innerHTML = '<div style="color:#e74c3c;">لا توجد أرقام طلاب مطابقة</div>';
                     resultDiv.style.display = 'block';
-                    statusEl.textContent = 'لم يتم العثور على أرقام';
-                }
-            } catch (err) {
-                statusEl.textContent = 'حدث خطأ: ' + err.message;
-                progressBar.style.width = '0%';
-            }
-        }
-
-        function applyOCRAbsent(nums) {
-            nums.forEach(num => {
-                if (!absentSet.has(num)) {
-                    absentSet.add(num);
                 }
             });
+        }
+
+        function applyQuickEntry() {
+            const text = document.getElementById('quickInput').value.trim();
+            if (!text) { showToast('اكتب أرقام الطلاب أولاً', true); return; }
+            const numbers = text.match(/\d+/g);
+            if (!numbers) { showToast('لم يتم العثور على أرقام', true); return; }
+            const seats = getData('seats');
+            const seatNums = seats.map(s => s.num);
+            const validNums = [];
+            numbers.forEach(n => {
+                const num = parseInt(n);
+                if (seatNums.includes(num) && !validNums.includes(num)) validNums.push(num);
+            });
+            if (validNums.length === 0) { showToast('لا توجد أرقام طلاب صالحة', true); return; }
+            validNums.forEach(num => { if (!absentSet.has(num)) absentSet.add(num); });
             periodAbsentSets[currentPeriodNum] = new Set(absentSet);
             renderSeatsGrid();
             updatePeriodButtons();
-            const seats = getData('seats');
             updateLiveCounts(seats.length, seats.length - absentSet.size, absentSet.size);
-            closeOCR();
-            showToast('تم تسجيل ' + nums.length + ' طالب غائب بالحصة ' + currentPeriodNum);
+            closeQuickEntry();
+            showToast('تم تسجيل ' + validNums.length + ' طالب غائب بالحصة ' + currentPeriodNum);
         }
     </script>
 
-    <!-- OCR Overlay -->
+    <!-- Quick Entry Overlay -->
     <div class="ocr-overlay" id="ocrOverlay">
         <div class="ocr-box">
-            <h3>📷 تصوير أرقام الغائبين</h3>
-            <p>التقط صورة لأرقام الطلاب الغائبين أو اختر صورة من الجهاز</p>
-
-            <div class="ocr-upload-area" id="ocrUploadArea" onclick="document.getElementById('ocrFileInput').click()">
-                <div class="icon">📸</div>
-                <div style="color:#3498db; font-weight:600;">اضغط هنا لالتقاط صورة أو اختيار ملف</div>
-            </div>
-            <input type="file" id="ocrFileInput" accept="image/*" capture="environment" style="display:none;" onchange="handleOCRFile(this)">
-
-            <img class="ocr-preview" id="ocrPreview">
-
-            <div class="ocr-progress" id="ocrProgress" style="display:none;">
-                <div class="ocr-progress-bar" id="ocrProgressBar"></div>
-            </div>
-            <div class="ocr-status" id="ocrStatus"></div>
-
+            <h3>⌨️ إدخال أرقام الغائبين</h3>
+            <p>اكتب أرقام الطلاب الغائبين مفصولة بفراغ أو فاصلة</p>
+            <input type="text" class="quick-input" id="quickInput" placeholder="مثال: 5 12 23" inputmode="numeric" autocomplete="off">
             <div class="ocr-result" id="ocrResult" style="display:none;"></div>
-
             <div class="ocr-actions">
-                <button class="btn btn-primary" id="ocrApplyBtn" style="display:none;">تسجيل الغياب</button>
-                <button class="btn btn-cancel" onclick="closeOCR()">إغلاق</button>
+                <button class="btn btn-primary" id="ocrApplyBtn" onclick="applyQuickEntry()">تسجيل الغياب</button>
+                <button class="btn btn-cancel" onclick="closeQuickEntry()">إغلاق</button>
             </div>
         </div>
     </div>
