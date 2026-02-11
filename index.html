@@ -920,9 +920,11 @@
         }
 
         // ===== Date =====
-        function getTodayStr() { return new Date().toISOString().split('T')[0]; }
+        function getTodayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
         function formatDate(dateStr) {
-            return new Date(dateStr).toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const parts = dateStr.split('-');
+            const d = new Date(parts[0], parts[1]-1, parts[2]);
+            return d.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
 
         // ===== Toast =====
