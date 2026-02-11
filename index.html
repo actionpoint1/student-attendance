@@ -1815,7 +1815,7 @@
                 statusEl.textContent = 'جاري التعرف على الأرقام...';
                 progressBar.style.width = '30%';
 
-                const result = await Tesseract.recognize(imageData, 'ara+eng', {
+                const worker = await Tesseract.createWorker('eng', 1, {
                     logger: m => {
                         if (m.status === 'recognizing text') {
                             const pct = Math.round(30 + m.progress * 60);
@@ -1823,6 +1823,9 @@
                         }
                     }
                 });
+                await worker.setParameters({ tessedit_char_whitelist: '0123456789 ,.-\n' });
+                const result = await worker.recognize(imageData);
+                await worker.terminate();
 
                 progressBar.style.width = '95%';
                 statusEl.textContent = 'جاري استخراج الأرقام...';
