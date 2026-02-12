@@ -508,65 +508,6 @@
         .period-btn.active .period-dot { background: #fff; }
         .period-btn.current-period { box-shadow: 0 0 8px rgba(52,152,219,0.4); }
 
-        /* Quick Entry Feature */
-        .btn-camera {
-            background: linear-gradient(135deg, #8e44ad, #9b59b6);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-        .btn-camera:hover { background: linear-gradient(135deg, #7d3c98, #8e44ad); }
-        .ocr-overlay {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.85);
-            z-index: 1000;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            padding: 15px;
-        }
-        .ocr-overlay.active { display: flex; }
-        .ocr-box {
-            background: #1a1a2e;
-            border-radius: 16px;
-            padding: 20px;
-            width: 100%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-            text-align: center;
-        }
-        .ocr-box h3 { color: #ffd200; margin-bottom: 12px; font-size: 1.1rem; }
-        .ocr-box p { color: #aaa; font-size: 0.85rem; margin-bottom: 15px; }
-        .ocr-result { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px; margin: 10px 0; text-align: right; }
-        .ocr-result .num-tag {
-            display: inline-block; padding: 4px 10px; margin: 3px;
-            background: rgba(231,76,60,0.2); color: #e74c3c;
-            border-radius: 8px; font-weight: 700; font-size: 0.9rem;
-        }
-        .quick-input {
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            border: 2px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.05);
-            color: #fff;
-            font-size: 1.2rem;
-            text-align: center;
-            font-weight: 700;
-            letter-spacing: 2px;
-            direction: ltr;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-        .quick-input:focus { border-color: #3498db; }
-        .quick-input::placeholder { color: rgba(255,255,255,0.3); font-size: 0.9rem; font-weight: 400; letter-spacing: 0; }
-        .ocr-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
-        }
-        .ocr-upload-area:hover { border-color: #3498db; background: rgba(52,152,219,0.05); }
-        .ocr-upload-area .icon { font-size: 2.5rem; margin-bottom: 8px; }
 
         /* Mobile First Optimizations */
         @media (max-width: 768px) {
@@ -762,8 +703,7 @@
 
                     <div class="actions" id="attendanceActions" style="display:none;">
                         <button class="btn btn-primary" onclick="saveAttendance()">حفظ الحضور</button>
-                        <button class="btn btn-camera" onclick="openQuickEntry()">⌨️ إدخال الغياب</button>
-                        <button class="btn btn-export" onclick="printDailyReport()">طباعة التقرير</button>
+                                                <button class="btn btn-export" onclick="printDailyReport()">طباعة التقرير</button>
                         <button class="btn btn-reset" onclick="resetAll()">إعادة تعيين الكل حاضر</button>
                     </div>
                 </div>
@@ -1765,87 +1705,7 @@
         document.getElementById('currentDate').textContent = formatDate(getTodayStr());
         buildClassSelector();
         checkAuth();
-
-        // ===== Quick Entry Feature =====
-        function openQuickEntry() {
-            document.getElementById('ocrOverlay').classList.add('active');
-            document.getElementById('ocrResult').style.display = 'none';
-            const input = document.getElementById('quickInput');
-            input.value = '';
-            setTimeout(() => input.focus(), 200);
-            previewQuickEntry();
-        }
-
-        function closeQuickEntry() {
-            document.getElementById('ocrOverlay').classList.remove('active');
-        }
-
-        function previewQuickEntry() {
-            const input = document.getElementById('quickInput');
-            const resultDiv = document.getElementById('ocrResult');
-            input.addEventListener('input', function() {
-                const text = input.value.trim();
-                if (!text) { resultDiv.style.display = 'none'; return; }
-                const numbers = text.match(/\d+/g);
-                if (!numbers) { resultDiv.style.display = 'none'; return; }
-                const seats = getData('seats');
-                const seatNums = seats.map(s => s.num);
-                const validNums = [];
-                numbers.forEach(n => {
-                    const num = parseInt(n);
-                    if (seatNums.includes(num) && !validNums.includes(num)) validNums.push(num);
-                });
-                if (validNums.length > 0) {
-                    validNums.sort((a, b) => a - b);
-                    resultDiv.innerHTML = '<div style="color:#ffd200; font-weight:700; margin-bottom:8px;">الطلاب (' + validNums.length + '):</div>' +
-                        validNums.map(n => {
-                            const seat = seats.find(s => s.num === n);
-                            const name = seat && seat.name ? ' - ' + seat.name : '';
-                            return '<span class="num-tag">' + n + name + '</span>';
-                        }).join('');
-                    resultDiv.style.display = 'block';
-                } else {
-                    resultDiv.innerHTML = '<div style="color:#e74c3c;">لا توجد أرقام طلاب مطابقة</div>';
-                    resultDiv.style.display = 'block';
-                }
-            });
-        }
-
-        function applyQuickEntry() {
-            const text = document.getElementById('quickInput').value.trim();
-            if (!text) { showToast('اكتب أرقام الطلاب أولاً', true); return; }
-            const numbers = text.match(/\d+/g);
-            if (!numbers) { showToast('لم يتم العثور على أرقام', true); return; }
-            const seats = getData('seats');
-            const seatNums = seats.map(s => s.num);
-            const validNums = [];
-            numbers.forEach(n => {
-                const num = parseInt(n);
-                if (seatNums.includes(num) && !validNums.includes(num)) validNums.push(num);
-            });
-            if (validNums.length === 0) { showToast('لا توجد أرقام طلاب صالحة', true); return; }
-            validNums.forEach(num => { if (!absentSet.has(num)) absentSet.add(num); });
-            periodAbsentSets[currentPeriodNum] = new Set(absentSet);
-            renderSeatsGrid();
-            updatePeriodButtons();
-            updateLiveCounts(seats.length, seats.length - absentSet.size, absentSet.size);
-            closeQuickEntry();
-            showToast('تم تسجيل ' + validNums.length + ' طالب غائب بالحصة ' + currentPeriodNum);
-        }
     </script>
 
-    <!-- Quick Entry Overlay -->
-    <div class="ocr-overlay" id="ocrOverlay">
-        <div class="ocr-box">
-            <h3>⌨️ إدخال أرقام الغائبين</h3>
-            <p>اكتب أرقام الطلاب الغائبين مفصولة بفراغ أو فاصلة</p>
-            <input type="text" class="quick-input" id="quickInput" placeholder="مثال: 5 12 23" inputmode="numeric" autocomplete="off">
-            <div class="ocr-result" id="ocrResult" style="display:none;"></div>
-            <div class="ocr-actions">
-                <button class="btn btn-primary" id="ocrApplyBtn" onclick="applyQuickEntry()">تسجيل الغياب</button>
-                <button class="btn btn-cancel" onclick="closeQuickEntry()">إغلاق</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
